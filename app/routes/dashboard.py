@@ -7,6 +7,8 @@ from app.services.camera_health import camera_health_service
 router = APIRouter(tags=["Dashboard"])
 templates = Jinja2Templates(directory="app/templates")
 
+from app.services.autoset_settings import autoset_settings_service
+
 @router.get("/")
 def render_dashboard(request: Request):
     conn = get_db_connection()
@@ -18,13 +20,36 @@ def render_dashboard(request: Request):
     presets = [dict(r) for r in cursor.fetchall()]
     conn.close()
 
-    # RTSP URL 마스킹
+    # RTSP URL 마스킹 및 Effective Settings Scope Profile 산출
     for c in cameras:
         c["rtsp_url_masked"] = camera_health_service.mask_rtsp_url(c["rtsp_url"])
+        eff = autoset_settings_service.get_effective_settings(c["id"])
+        c["profile_scope"] = eff.scope_resolved
+
+    for p in presets:
+        eff_p = autoset_settings_service.get_effective_settings(p["camera_id"], p["id"])
+        p["profile_scope"] = eff_p.scope_resolved
 
     return templates.TemplateResponse(
         "dashboard.html",
         {"request": request, "cameras": cameras, "presets": presets, "app_name": settings.APP_NAME}
+    )
+
+@router.get("/settings/auto-set")
+def render_autoset_settings(request: Request):
+    """Auto Set 설정 관리 전용 페이지"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM cameras ORDER BY id ASC")
+    cameras = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("SELECT p.*, c.name as camera_name FROM presets p JOIN cameras c ON p.camera_id = c.id ORDER BY c.id ASC, p.sort_order ASC")
+    presets = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+
+    return templates.TemplateResponse(
+        "settings_autoset.html",
+        {"request": request, "cameras": cameras, "presets": presets}
     )
 
 @router.get("/cameras")

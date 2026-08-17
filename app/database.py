@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 def get_db_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(settings.DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 def init_db():
@@ -125,6 +126,56 @@ def init_db():
         description TEXT
     );
     """)
+
+    # 5. Auto Set Tuning Settings (Global, Camera, Preset Override)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS auto_set_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL CHECK(scope IN ('GLOBAL', 'CAMERA', 'PRESET')),
+        camera_id INTEGER NULL,
+        preset_id INTEGER NULL,
+        
+        pan_gain REAL NULL,
+        tilt_gain REAL NULL,
+        deadzone_x REAL NULL,
+        deadzone_y REAL NULL,
+        tolerance_x REAL NULL,
+        tolerance_y REAL NULL,
+        
+        max_pan_limit REAL NULL,
+        max_tilt_limit REAL NULL,
+        min_correction REAL NULL,
+        
+        pan_speed INTEGER NULL,
+        tilt_speed INTEGER NULL,
+        
+        max_iterations INTEGER NULL,
+        correction_interval_ms INTEGER NULL,
+        
+        detection_confidence_threshold REAL NULL,
+        pose_confidence_threshold REAL NULL,
+        
+        target_selection_policy TEXT NULL,
+        enable_zoom_correction BOOLEAN DEFAULT 0,
+        
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        
+        FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE,
+        FOREIGN KEY (preset_id) REFERENCES presets(id) ON DELETE CASCADE,
+        
+        CHECK (
+            (scope = 'GLOBAL' AND camera_id IS NULL AND preset_id IS NULL) OR
+            (scope = 'CAMERA' AND camera_id IS NOT NULL AND preset_id IS NULL) OR
+            (scope = 'PRESET' AND camera_id IS NOT NULL AND preset_id IS NOT NULL)
+        )
+    );
+    """)
+
+    # SQLite Partial Unique Indexes for Scope NULL Safety
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_autoset_global ON auto_set_settings(scope) WHERE scope = 'GLOBAL';")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_autoset_camera ON auto_set_settings(camera_id) WHERE scope = 'CAMERA';")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_autoset_preset ON auto_set_settings(preset_id) WHERE scope = 'PRESET';")
 
     conn.commit()
 

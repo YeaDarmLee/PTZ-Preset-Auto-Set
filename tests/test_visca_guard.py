@@ -41,6 +41,7 @@ class MockPTZController(PTZControllerBase):
         return True
 
 
+@pytest.mark.unit
 def test_protected_ptz_controller_live_save():
     async def _run():
         mock_ptz = MockPTZController()
@@ -54,6 +55,7 @@ def test_protected_ptz_controller_live_save():
     asyncio.run(_run())
 
 
+@pytest.mark.unit
 def test_protected_ptz_controller_base_save_blocked():
     async def _run():
         mock_ptz = MockPTZController()
@@ -76,6 +78,7 @@ def test_protected_ptz_controller_base_save_blocked():
     asyncio.run(_run())
 
 
+@pytest.mark.unit
 def test_protected_ptz_controller_update_presets():
     async def _run():
         mock_ptz = MockPTZController()
@@ -89,4 +92,5 @@ def test_protected_ptz_controller_update_presets():
         assert await protected_ptz.save_preset(2) is True
 
     asyncio.run(_run())
+
 

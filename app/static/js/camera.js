@@ -68,7 +68,7 @@ function runDraftTest() {
         })
         .catch(err => {
             draftTestPassed = false;
-            document.getElementById("draftTestError").innerText = "❌ 테스트 실패: " + err.message;
+            document.getElementById("draftTestError").innerText = "테스트 실패: " + err.message;
         });
 }
 
@@ -112,7 +112,7 @@ function handleCameraSubmit(e) {
             closeCameraModal();
             window.location.reload();
         })
-        .catch(err => alert("❌ 저장 실패: " + err.message));
+        .catch(err => alert("저장 실패: " + err.message));
 }
 
 function testExistingCamera(camId) {
@@ -140,7 +140,7 @@ function deleteCamera(camId) {
             alert("카메라가 삭제되었습니다.");
             window.location.reload();
         })
-        .catch(err => alert("❌ 삭제 차단: " + err.message));
+        .catch(err => alert("삭제 차단: " + err.message));
 }
 
 // WebSocket 런타임 상태 브로드캐스트 이벤트 수신

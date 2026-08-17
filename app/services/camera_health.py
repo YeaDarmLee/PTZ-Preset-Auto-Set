@@ -148,8 +148,15 @@ class CameraHealthService:
         """저장 전 Draft 설정에 대한 2단계 분리 헬스 체크"""
         full_rtsp = self.build_full_rtsp_url(rtsp_url, username, password)
 
-        visca_status, latency, visca_err = await self.test_visca(ip, visca_port, visca_protocol)
-        rtsp_status, res, rtsp_err = await self.test_rtsp(full_rtsp)
+        try:
+            visca_status, latency, visca_err = await self.test_visca(ip, visca_port, visca_protocol)
+        except Exception as e:
+            visca_status, latency, visca_err = HealthStatus.FAILED, None, f"VISCA Error: {str(e)}"
+
+        try:
+            rtsp_status, res, rtsp_err = await self.test_rtsp(full_rtsp)
+        except Exception as e:
+            rtsp_status, res, rtsp_err = HealthStatus.FAILED, None, f"RTSP Error: {str(e)}"
 
         overall_success = (visca_status == HealthStatus.CONNECTED) and (rtsp_status == HealthStatus.CONNECTED)
 

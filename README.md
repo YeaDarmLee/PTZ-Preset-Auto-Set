@@ -44,7 +44,7 @@ python -m app.main
 
 ---
 
-## ⚙️ Windows 부팅 시 자동 실행 설정 (Task Scheduler)
+## Windows 부팅 시 자동 실행 설정 (Task Scheduler)
 
 방송 PC 전원이 켜지면 수동 조작 없이 서버가 자동으로 시작되도록 설정합니다.
 

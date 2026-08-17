@@ -1,0 +1,581 @@
+{% extends "base.html" %}
+
+{% block title %}Auto Set Tuning Settings - PTZ Preset Auto Set System{% endblock %}
+
+{% block content %}
+<div class="settings-container" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+            <h2 style="font-size: 1.8rem; font-weight: 700; color: #f8fafc; margin: 0;">Auto Set 튜닝 및 안전 설정</h2>
+            <p style="color: #94a3b8; font-size: 0.95rem; margin-top: 4px;">
+                방송실 운영자가 개발자 코드 수정 없이 보정 강도, Dead Zone, PTZ 속도, Safety Limit을 직접 조절하고 Dry Run을 실행합니다.
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-secondary" onclick="openCalculationTestModal()">Calculation Test</button>
+            <button class="btn btn-primary" onclick="openLiveDryRunModal()">Live Dry Run</button>
+        </div>
+    </div>
+
+    <!-- Scope Selector Tabs -->
+    <div style="display: flex; gap: 12px; border-bottom: 2px solid #334155; padding-bottom: 12px; margin-bottom: 24px;">
+        <button id="tabGlobal" class="btn btn-primary" onclick="switchScope('GLOBAL')">Global Default</button>
+        <button id="tabCamera" class="btn btn-secondary" onclick="switchScope('CAMERA')">Camera Override</button>
+        <button id="tabPreset" class="btn btn-secondary" onclick="switchScope('PRESET')">Preset Override</button>
+    </div>
+
+    <!-- Scope Selector Controls -->
+    <div id="scopeControls"
+        style="display: none; background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 24px; border: 1px solid #334155;">
+        <div style="display: flex; gap: 20px; align-items: center;">
+            <div id="cameraSelectContainer" style="display: none;">
+                <label style="color: #cbd5e1; font-weight: 600; margin-right: 8px;">카메라 선택:</label>
+                <select id="cameraSelect" onchange="onCameraSelected()"
+                    style="background: #0f172a; color: #fff; border: 1px solid #475569; padding: 8px 12px; border-radius: 6px;">
+                    {% for c in cameras %}
+                    <option value="{{ c.id }}">{{ c.name }} ({{ c.ip_address }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="presetSelectContainer" style="display: none;">
+                <label style="color: #cbd5e1; font-weight: 600; margin-right: 8px;">프리셋 선택:</label>
+                <select id="presetSelect" onchange="onPresetSelected()"
+                    style="background: #0f172a; color: #fff; border: 1px solid #475569; padding: 8px 12px; border-radius: 6px;">
+                    {% for p in presets %}
+                    <option value="{{ p.id }}" data-camera="{{ p.camera_id }}">{{ p.camera_name }} - {{ p.name }} (BASE
+                        #{{ p.base_preset_no }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button id="btnDeleteOverride" class="btn btn-danger" onclick="deleteOverride()"
+                style="display: none; margin-left: auto;">🗑️ Override 삭제 (상위 Scope 상속)</button>
+        </div>
+    </div>
+
+    <!-- Effective Settings Preview Dashboard -->
+    <div
+        style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin-bottom: 28px;">
+        <h3 style="color: #38bdf8; font-size: 1.1rem; font-weight: 700; margin-top: 0; margin-bottom: 12px;">
+            최종 적용 설정 Preview (Effective Settings & Safety Limits)
+        </h3>
+        <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px;">
+            선택된 대상에 대해 3단계 계층 수직 상속(Preset > Camera > Global > System)이 최종 적용된 결과와 출처 뱃지입니다.
+        </p>
+
+        <div id="effectivePreviewGrid"
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+            <!-- Dynamic JS fill -->
+        </div>
+    </div>
+
+    <!-- Main Settings Tuning Form -->
+    <form id="settingsForm" onsubmit="saveSettings(event)"
+        style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 id="formTitle" style="color: #f1f5f9; margin: 0; font-size: 1.2rem;">Global Settings 편집</h3>
+            <span id="dirtyIndicator" style="color: #f59e0b; font-size: 0.9rem; font-weight: 600; display: none;">● 저장되지
+                않은 변경사항</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <!-- Left Column: PTZ Gains & Speed -->
+            <div>
+                <h4 style="color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 8px;">1. PTZ 보정 강도 및 속도
+                </h4>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="color: #cbd5e1; display: flex; justify-content: space-between;">
+                        <span>Pan 보정 강도 (Pan Gain)</span>
+                        <span id="lblPanGain" style="font-weight: 700; color: #38bdf8;">18.0</span>
+                    </label>
+                    <input type="range" id="inpPanGain" min="1.0" max="30.0" step="0.5" value="18.0"
+                        oninput="updateFormLabels(); markDirty();" style="width: 100%;">
+                    <small style="color: #64748b;">ⓘ 수평 화면 오차에 대한 이동 보정 비율입니다.</small>
+                    <div id="warnPanGain"
+                        style="color: #ef4444; font-size: 0.8rem; font-weight: 600; display: none; margin-top: 4px;">⚠️
+                        보정량이 너무 큽니다. 급격한 모터 구동 주의!</div>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="color: #cbd5e1; display: flex; justify-content: space-between;">
+                        <span>Tilt 보정 강도 (Tilt Gain)</span>
+                        <span id="lblTiltGain" style="font-weight: 700; color: #38bdf8;">14.0</span>
+                    </label>
+                    <input type="range" id="inpTiltGain" min="1.0" max="30.0" step="0.5" value="14.0"
+                        oninput="updateFormLabels(); markDirty();" style="width: 100%;">
+                    <small style="color: #64748b;">ⓘ 수직 화면 오차에 대한 이동 보정 비율입니다.</small>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="color: #cbd5e1; display: flex; justify-content: space-between;">
+                        <span>Pan 구동 속도 (Pan Speed: 1~24)</span>
+                        <span id="lblPanSpeed" style="font-weight: 700; color: #10b981;">12</span>
+                    </label>
+                    <input type="range" id="inpPanSpeed" min="1" max="24" step="1" value="12"
+                        oninput="updateFormLabels(); markDirty();" style="width: 100%;">
+                    <small style="color: #64748b;">느림 ←───────────────→ 빠름</small>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="color: #cbd5e1; display: flex; justify-content: space-between;">
+                        <span>Tilt 구동 속도 (Tilt Speed: 1~20)</span>
+                        <span id="lblTiltSpeed" style="font-weight: 700; color: #10b981;">10</span>
+                    </label>
+                    <input type="range" id="inpTiltSpeed" min="1" max="20" step="1" value="10"
+                        oninput="updateFormLabels(); markDirty();" style="width: 100%;">
+                    <small style="color: #64748b;">느림 ←───────────────→ 빠름</small>
+                </div>
+            </div>
+
+            <!-- Right Column: DeadZone, Tolerance & Safety Limits -->
+            <div>
+                <h4 style="color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 8px;">2. 허용 오차 (Dead Zone)
+                    & 안전 제한</h4>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="color: #cbd5e1; display: flex; justify-content: space-between;">
+                        <span>수평 Dead Zone (%)</span>
+                        <span id="lblDeadzoneX" style="font-weight: 700; color: #f59e0b;">3.0%</span>
+                    </label>
+                    <input type="range" id="inpDeadzoneX" min="0.5" max="10.0" step="0.5" value="3.0"
+                        oninput="updateFormLabels(); markDirty();" style="width: 100%;">
+                    <small style="color: #64748b;">ⓘ 오차가 이 값 이내이면 수평 PTZ 이동을 스킵합니다.</small>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="color: #cbd5e1; display: flex; justify-content: space-between;">
+                        <span>수직 Dead Zone (%)</span>
+                        <span id="lblDeadzoneY" style="font-weight: 700; color: #f59e0b;">3.0%</span>
+                    </label>
+                    <input type="range" id="inpDeadzoneY" min="0.5" max="10.0" step="0.5" value="3.0"
+                        oninput="updateFormLabels(); markDirty();" style="width: 100%;">
+                    <small style="color: #64748b;">ⓘ 오차가 이 값 이내이면 수직 PTZ 이동을 스킵합니다.</small>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="color: #cbd5e1; display: flex; justify-content: space-between;">
+                        <span>Target 수렴 허용 오차 (Tolerance X / Y %)</span>
+                        <span id="lblTolerance" style="font-weight: 700; color: #38bdf8;">3.0% / 3.0%</span>
+                    </label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="range" id="inpToleranceX" min="0.5" max="10.0" step="0.5" value="3.0"
+                            oninput="updateFormLabels(); markDirty();" style="flex: 1;">
+                        <input type="range" id="inpToleranceY" min="0.5" max="10.0" step="0.5" value="3.0"
+                            oninput="updateFormLabels(); markDirty();" style="flex: 1;">
+                    </div>
+                    <small style="color: #64748b;">ⓘ AutoSet 최종 수렴 성공을 결정하는 기준입니다 (Tolerance ≥ DeadZone 규칙 필수).</small>
+                    <div id="warnTolerance"
+                        style="color: #ef4444; font-size: 0.8rem; font-weight: 600; display: none; margin-top: 4px;">⚠️
+                        Tolerance는 Dead Zone보다 크거나 같아야 무한 루프를 방지합니다.</div>
+                </div>
+
+                <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+                    <div style="flex: 1;">
+                        <label style="color: #cbd5e1; font-size: 0.9rem;">Max Pan Limit (Soft)</label>
+                        <input type="number" id="inpMaxPanLimit" step="0.5" min="1.0" max="15.0" value="5.0"
+                            oninput="markDirty()"
+                            style="width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px; border-radius: 4px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #cbd5e1; font-size: 0.9rem;">Max Tilt Limit (Soft)</label>
+                        <input type="number" id="inpMaxTiltLimit" step="0.5" min="1.0" max="10.0" value="4.0"
+                            oninput="markDirty()"
+                            style="width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px; border-radius: 4px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #cbd5e1; font-size: 0.9rem;">Min Correction Deadband</label>
+                        <input type="number" id="inpMinCorrection" step="0.001" min="0.001" max="0.05" value="0.005"
+                            oninput="markDirty()"
+                            style="width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px; border-radius: 4px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #334155; margin: 24px 0;">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <!-- Iteration & AI Settings -->
+            <div>
+                <h4 style="color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 8px;">3. 루프 반복 & AI
+                    Confidence 설정</h4>
+                <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+                    <div style="flex: 1;">
+                        <label style="color: #cbd5e1; font-size: 0.85rem;">최대 보정 횟수 (Max Iterations)</label>
+                        <input type="number" id="inpMaxIterations" min="1" max="20" value="10" oninput="markDirty()"
+                            style="width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px; border-radius: 4px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #cbd5e1; font-size: 0.85rem;">재측정 대기시간 (Interval ms)</label>
+                        <input type="number" id="inpIntervalMs" min="100" max="2000" step="50" value="300"
+                            oninput="markDirty()"
+                            style="width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px; border-radius: 4px;">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 16px;">
+                    <div style="flex: 1;">
+                        <label style="color: #cbd5e1; font-size: 0.85rem;">Detection Confidence Thresh</label>
+                        <input type="number" id="inpDetConf" step="0.05" min="0.1" max="1.0" value="0.60"
+                            oninput="markDirty()"
+                            style="width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px; border-radius: 4px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #cbd5e1; font-size: 0.85rem;">Pose Keypoint Thresh</label>
+                        <input type="number" id="inpPoseConf" step="0.05" min="0.1" max="1.0" value="0.30"
+                            oninput="markDirty()"
+                            style="width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px; border-radius: 4px;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Selection & Zoom Feature -->
+            <div>
+                <h4 style="color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 8px;">4. Target Selection &
+                    Zoom 기능 상태</h4>
+                <div style="margin-bottom: 12px;">
+                    <label style="color: #cbd5e1; font-size: 0.85rem; display: block; margin-bottom: 4px;">다수 인물 검출 시 기준
+                        정책</label>
+                    <select id="selTargetPolicy" onchange="markDirty()"
+                        style="width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px; border-radius: 4px;">
+                        <option value="CENTER_CLOSEST">ROI 중심에 가장 가까운 사람</option>
+                        <option value="HIGHEST_CONFIDENCE">Detection Confidence가 가장 높은 사람</option>
+                        <option value="LARGEST_BBOX">가장 큰 Bounding Box 인물</option>
+                    </select>
+                </div>
+                <div style="background: #0f172a; padding: 10px; border-radius: 6px; border: 1px solid #334155;">
+                    <span class="badge" style="background: #475569; color: #cbd5e1;">Zoom 보정: 비활성화 (향후 지원 예정)</span>
+                    <p style="color: #64748b; font-size: 0.75rem; margin: 4px 0 0 0;">현재 버전은 Pan/Tilt Closed-loop 미세 보정에
+                        집중하도록 설계되었습니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+            <button type="button" class="btn btn-secondary" onclick="cancelChanges()">변경 취소</button>
+            <button type="submit" class="btn btn-primary">설정 저장</button>
+        </div>
+    </form>
+</div>
+
+<!-- Calculation Test Modal -->
+<div id="calcModal" class="modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center;">
+    <div
+        style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:24px; max-width:600px; width:90%;">
+        <h3 style="color:#38bdf8; margin-top:0;">Calculation Test (Zero RTSP / Pure Math)</h3>
+        <p style="color:#94a3b8; font-size:0.85rem;">카메라나 AI 연결 없이 입력 수치 오차만으로 보정치 및 Dead Zone 판정을 시뮬레이션합니다.</p>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+            <div><label style="color:#cbd5e1;">Target X (0.0~1.0)</label><input type="number" id="calcTargetX"
+                    value="0.5" step="0.05" style="width:100%; background:#0f172a; color:#fff; padding:6px;"></div>
+            <div><label style="color:#cbd5e1;">Target Y (0.0~1.0)</label><input type="number" id="calcTargetY"
+                    value="0.3" step="0.05" style="width:100%; background:#0f172a; color:#fff; padding:6px;"></div>
+            <div><label style="color:#cbd5e1;">Detected X (0.0~1.0)</label><input type="number" id="calcDetX"
+                    value="0.6" step="0.05" style="width:100%; background:#0f172a; color:#fff; padding:6px;"></div>
+            <div><label style="color:#cbd5e1;">Detected Y (0.0~1.0)</label><input type="number" id="calcDetY"
+                    value="0.4" step="0.05" style="width:100%; background:#0f172a; color:#fff; padding:6px;"></div>
+        </div>
+
+        <button class="btn btn-primary" onclick="runCalcTestSubmit()" style="width:100%; margin-bottom:16px;">계산
+            실행</button>
+        <pre id="calcResultPre"
+            style="background:#0f172a; color:#10b981; padding:12px; border-radius:6px; font-size:0.85rem; max-height:200px; overflow:auto;">결과가 여기에 표시됩니다.</pre>
+        <button class="btn btn-secondary" onclick="closeCalcModal()" style="margin-top:12px;">닫기</button>
+    </div>
+</div>
+
+<!-- Live Dry Run Result Modal -->
+<div id="dryRunModal" class="modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center;">
+    <div
+        style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:24px; max-width:700px; width:90%;">
+        <h3 style="color:#f59e0b; margin-top:0;">Live Dry Run 결과</h3>
+        <div
+            style="background:#451a03; border:1px solid #b45309; color:#fde68a; padding:12px; border-radius:6px; margin-bottom:16px; font-size:0.85rem;">
+            ⚠️ <strong>Notice</strong>: Live Dry Run은 Preset Recall을 수행하지 않습니다. 현재 카메라 라이브 화면을 선택한 Preset의 Target/ROI
+            기준과 비교하며, PTZ 이동 및 Preset Save는 절대 실행되지 않습니다.
+        </div>
+        <pre id="dryRunResultPre"
+            style="background:#0f172a; color:#38bdf8; padding:12px; border-radius:6px; font-size:0.85rem; max-height:300px; overflow:auto;">분석 중...</pre>
+        <button class="btn btn-secondary" onclick="closeDryRunModal()" style="margin-top:12px;">닫기</button>
+    </div>
+</div>
+
+<script>
+    let currentScope = 'GLOBAL';
+    let activeCameraId = null;
+    let activePresetId = null;
+    let isDirty = false;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSettings();
+    });
+
+    function switchScope(scope) {
+        currentScope = scope;
+        document.getElementById('tabGlobal').className = scope === 'GLOBAL' ? 'btn btn-primary' : 'btn btn-secondary';
+        document.getElementById('tabCamera').className = scope === 'CAMERA' ? 'btn btn-primary' : 'btn btn-secondary';
+        document.getElementById('tabPreset').className = scope === 'PRESET' ? 'btn btn-primary' : 'btn btn-secondary';
+
+        const controls = document.getElementById('scopeControls');
+        const camCont = document.getElementById('cameraSelectContainer');
+        const preCont = document.getElementById('presetSelectContainer');
+        const btnDel = document.getElementById('btnDeleteOverride');
+
+        if (scope === 'GLOBAL') {
+            controls.style.display = 'none';
+            btnDel.style.display = 'none';
+            activeCameraId = null;
+            activePresetId = null;
+        } else if (scope === 'CAMERA') {
+            controls.style.display = 'block';
+            camCont.style.display = 'block';
+            preCont.style.display = 'none';
+            btnDel.style.display = 'inline-block';
+            activeCameraId = parseInt(document.getElementById('cameraSelect').value);
+            activePresetId = null;
+        } else if (scope === 'PRESET') {
+            controls.style.display = 'block';
+            camCont.style.display = 'none';
+            preCont.style.display = 'block';
+            btnDel.style.display = 'inline-block';
+            activePresetId = parseInt(document.getElementById('presetSelect').value);
+            const selOpt = document.getElementById('presetSelect').selectedOptions[0];
+            activeCameraId = parseInt(selOpt.getAttribute('data-camera'));
+        }
+
+        loadSettings();
+    }
+
+    function onCameraSelected() {
+        activeCameraId = parseInt(document.getElementById('cameraSelect').value);
+        loadSettings();
+    }
+
+    function onPresetSelected() {
+        const selOpt = document.getElementById('presetSelect').selectedOptions[0];
+        activePresetId = parseInt(document.getElementById('presetSelect').value);
+        activeCameraId = parseInt(selOpt.getAttribute('data-camera'));
+        loadSettings();
+    }
+
+    async function loadSettings() {
+        let url = '/api/settings/auto-set?';
+        if (activeCameraId) url += `camera_id=${activeCameraId}&`;
+        if (activePresetId) url += `preset_id=${activePresetId}&`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        renderEffectivePreview(data.effective_preview);
+        fillFormValues(data);
+        isDirty = false;
+        document.getElementById('dirtyIndicator').style.display = 'none';
+    }
+
+    function renderEffectivePreview(preview) {
+        const grid = document.getElementById('effectivePreviewGrid');
+        grid.innerHTML = '';
+
+        const eff = preview.effective;
+        const hLimits = preview.system_hard_limits;
+
+        const items = [
+            { label: 'Pan Gain', val: eff.pan_gain },
+            { label: 'Tilt Gain', val: eff.tilt_gain },
+            { label: 'Dead Zone X / Y', val: `${(eff.deadzone_x * 100).toFixed(1)}% / ${(eff.deadzone_y * 100).toFixed(1)}%` },
+            { label: 'Tolerance X / Y', val: `${(eff.tolerance_x * 100).toFixed(1)}% / ${(eff.tolerance_y * 100).toFixed(1)}%` },
+            { label: 'Max Pan / Tilt Limit', val: `±${eff.max_pan_limit} / ±${eff.max_tilt_limit}` },
+            { label: 'System Hard Clamps', val: `Pan ±${hLimits.max_pan_delta} / Tilt ±${hLimits.max_tilt_delta}` }
+        ];
+
+        let badgeClass = 'background:#2563eb; color:#fff;';
+        if (eff.scope_resolved === 'PRESET') badgeClass = 'background:#8b5cf6; color:#fff;';
+        if (eff.scope_resolved === 'CAMERA') badgeClass = 'background:#059669; color:#fff;';
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.style = 'background:#1e293b; border:1px solid #334155; padding:10px 14px; border-radius:6px;';
+            card.innerHTML = `
+            <div style="font-size:0.75rem; color:#94a3b8;">${item.label}</div>
+            <div style="font-size:1.1rem; font-weight:700; color:#f1f5f9; margin-top:2px;">${item.val}</div>
+            <span class="badge" style="font-size:0.65rem; margin-top:4px; ${badgeClass}">Source: ${eff.scope_resolved}</span>
+        `;
+            grid.appendChild(card);
+        });
+    }
+
+    function fillFormValues(data) {
+        const sys = data.system_defaults;
+        let targetObj = sys;
+
+        if (currentScope === 'GLOBAL' && data.global) targetObj = data.global;
+        if (currentScope === 'CAMERA') {
+            const found = data.camera_overrides.find(c => c.camera_id === activeCameraId);
+            if (found) targetObj = found;
+        }
+        if (currentScope === 'PRESET') {
+            const found = data.preset_overrides.find(p => p.preset_id === activePresetId);
+            if (found) targetObj = found;
+        }
+
+        document.getElementById('inpPanGain').value = targetObj.pan_gain ?? sys.pan_gain;
+        document.getElementById('inpTiltGain').value = targetObj.tilt_gain ?? sys.tilt_gain;
+        document.getElementById('inpPanSpeed').value = targetObj.pan_speed ?? sys.pan_speed;
+        document.getElementById('inpTiltSpeed').value = targetObj.tilt_speed ?? sys.tilt_speed;
+        document.getElementById('inpDeadzoneX').value = ((targetObj.deadzone_x ?? sys.deadzone_x) * 100).toFixed(1);
+        document.getElementById('inpDeadzoneY').value = ((targetObj.deadzone_y ?? sys.deadzone_y) * 100).toFixed(1);
+        document.getElementById('inpToleranceX').value = ((targetObj.tolerance_x ?? sys.tolerance_x) * 100).toFixed(1);
+        document.getElementById('inpToleranceY').value = ((targetObj.tolerance_y ?? sys.tolerance_y) * 100).toFixed(1);
+        document.getElementById('inpMaxPanLimit').value = targetObj.max_pan_limit ?? sys.max_pan_limit;
+        document.getElementById('inpMaxTiltLimit').value = targetObj.max_tilt_limit ?? sys.max_tilt_limit;
+        document.getElementById('inpMinCorrection').value = targetObj.min_correction ?? sys.min_correction;
+        document.getElementById('inpMaxIterations').value = targetObj.max_iterations ?? sys.max_iterations;
+        document.getElementById('inpIntervalMs').value = targetObj.correction_interval_ms ?? sys.correction_interval_ms;
+        document.getElementById('inpDetConf').value = targetObj.detection_confidence_threshold ?? sys.detection_confidence_threshold;
+        document.getElementById('inpPoseConf').value = targetObj.pose_confidence_threshold ?? sys.pose_confidence_threshold;
+        document.getElementById('selTargetPolicy').value = targetObj.target_selection_policy ?? sys.target_selection_policy;
+
+        updateFormLabels();
+    }
+
+    function updateFormLabels() {
+        const pg = parseFloat(document.getElementById('inpPanGain').value);
+        document.getElementById('lblPanGain').innerText = pg.toFixed(1);
+        document.getElementById('warnPanGain').style.display = pg > 25.0 ? 'block' : 'none';
+
+        document.getElementById('lblTiltGain').innerText = parseFloat(document.getElementById('inpTiltGain').value).toFixed(1);
+        document.getElementById('lblPanSpeed').innerText = document.getElementById('inpPanSpeed').value;
+        document.getElementById('lblTiltSpeed').innerText = document.getElementById('inpTiltSpeed').value;
+
+        const dzX = parseFloat(document.getElementById('inpDeadzoneX').value);
+        const dzY = parseFloat(document.getElementById('inpDeadzoneY').value);
+        document.getElementById('lblDeadzoneX').innerText = dzX.toFixed(1) + '%';
+        document.getElementById('lblDeadzoneY').innerText = dzY.toFixed(1) + '%';
+
+        const tolX = parseFloat(document.getElementById('inpToleranceX').value);
+        const tolY = parseFloat(document.getElementById('inpToleranceY').value);
+        document.getElementById('lblTolerance').innerText = `${tolX.toFixed(1)}% / ${tolY.toFixed(1)}%`;
+
+        const warnTol = document.getElementById('warnTolerance');
+        warnTol.style.display = (tolX < dzX || tolY < dzY) ? 'block' : 'none';
+    }
+
+    function markDirty() {
+        isDirty = true;
+        document.getElementById('dirtyIndicator').style.display = 'inline';
+    }
+
+    function cancelChanges() {
+        loadSettings();
+    }
+
+    async function saveSettings(e) {
+        e.preventDefault();
+
+        const dzX = parseFloat(document.getElementById('inpDeadzoneX').value) / 100.0;
+        const dzY = parseFloat(document.getElementById('inpDeadzoneY').value) / 100.0;
+        const tolX = parseFloat(document.getElementById('inpToleranceX').value) / 100.0;
+        const tolY = parseFloat(document.getElementById('inpToleranceY').value) / 100.0;
+
+        if (tolX < dzX || tolY < dzY) {
+            alert('Tolerance(수렴 허용 오차)는 Dead Zone보다 크거나 같아야 무한 수렴 루프를 방지합니다.');
+            return;
+        }
+
+        const payload = {
+            scope: currentScope,
+            camera_id: activeCameraId,
+            preset_id: activePresetId,
+            pan_gain: parseFloat(document.getElementById('inpPanGain').value),
+            tilt_gain: parseFloat(document.getElementById('inpTiltGain').value),
+            pan_speed: parseInt(document.getElementById('inpPanSpeed').value),
+            tilt_speed: parseInt(document.getElementById('inpTiltSpeed').value),
+            deadzone_x: dzX,
+            deadzone_y: dzY,
+            tolerance_x: tolX,
+            tolerance_y: tolY,
+            max_pan_limit: parseFloat(document.getElementById('inpMaxPanLimit').value),
+            max_tilt_limit: parseFloat(document.getElementById('inpMaxTiltLimit').value),
+            min_correction: parseFloat(document.getElementById('inpMinCorrection').value),
+            max_iterations: parseInt(document.getElementById('inpMaxIterations').value),
+            correction_interval_ms: parseInt(document.getElementById('inpIntervalMs').value),
+            detection_confidence_threshold: parseFloat(document.getElementById('inpDetConf').value),
+            pose_confidence_threshold: parseFloat(document.getElementById('inpPoseConf').value),
+            target_selection_policy: document.getElementById('selTargetPolicy').value
+        };
+
+        const res = await fetch('/api/settings/auto-set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert('✅ 설정이 성공적으로 저장되었습니다!');
+            loadSettings();
+        } else {
+            const err = await res.json();
+            alert('저장 실패: ' + (err.detail || '오류 발생'));
+        }
+    }
+
+    async function deleteOverride() {
+        if (!confirm('정말로 이 Override 설정을 삭제하고 상위 Scope 설정을 상속받으시겠습니까?')) return;
+
+        let url = `/api/settings/auto-set/override?scope=${currentScope}&`;
+        if (activeCameraId) url += `camera_id=${activeCameraId}&`;
+        if (activePresetId) url += `preset_id=${activePresetId}&`;
+
+        const res = await fetch(url, { method: 'DELETE' });
+        if (res.ok) {
+            alert('✅ Override가 성공적으로 삭제되었습니다.');
+            loadSettings();
+        } else {
+            alert('삭제 실패');
+        }
+    }
+
+    // Modal Handlers
+    function openCalculationTestModal() {
+        document.getElementById('calcModal').style.display = 'flex';
+    }
+    function closeCalcModal() {
+        document.getElementById('calcModal').style.display = 'none';
+    }
+    async function runCalcTestSubmit() {
+        const payload = {
+            target_x: parseFloat(document.getElementById('calcTargetX').value),
+            target_y: parseFloat(document.getElementById('calcTargetY').value),
+            detected_x: parseFloat(document.getElementById('calcDetX').value),
+            detected_y: parseFloat(document.getElementById('calcDetY').value),
+            camera_id: activeCameraId,
+            preset_id: activePresetId
+        };
+
+        const res = await fetch('/api/settings/auto-set/test-calc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        document.getElementById('calcResultPre').innerText = JSON.stringify(data, null, 2);
+    }
+
+    function openLiveDryRunModal() {
+        const pid = activePresetId || (document.getElementById('presetSelect') ? parseInt(document.getElementById('presetSelect').value) : 1);
+        document.getElementById('dryRunModal').style.display = 'flex';
+        runLiveDryRunSubmit(pid);
+    }
+    function closeDryRunModal() {
+        document.getElementById('dryRunModal').style.display = 'none';
+    }
+    async function runLiveDryRunSubmit(pid) {
+        document.getElementById('dryRunResultPre').innerText = '라이브 카메라 프레임 수신 및 AI 분석 중...';
+        const res = await fetch(`/api/settings/auto-set/live-dry-run/${pid}`, { method: 'POST' });
+        const data = await res.json();
+        document.getElementById('dryRunResultPre').innerText = JSON.stringify(data, null, 2);
+    }
+</script>
+{% endblock %}

@@ -164,6 +164,6 @@ function saveROIAndTarget() {
             alert("ROI 영역 및 Target 구도 설정이 정상적으로 저장되었습니다!");
         })
         .catch(err => {
-            alert("❌ 저장 실패: " + err.message);
+            alert("저장 실패: " + err.message);
         });
 }

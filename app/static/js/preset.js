@@ -65,7 +65,7 @@ function handlePresetSubmit(e) {
             closePresetModal();
             window.location.reload();
         })
-        .catch(err => alert("❌ 저장 실패: " + err.message));
+        .catch(err => alert("저장 실패: " + err.message));
 }
 
 function deletePreset(presetId) {
@@ -81,5 +81,5 @@ function deletePreset(presetId) {
             alert("프리셋이 삭제되었습니다.");
             window.location.reload();
         })
-        .catch(err => alert("❌ 삭제 실패: " + err.message));
+        .catch(err => alert("삭제 실패: " + err.message));
 }

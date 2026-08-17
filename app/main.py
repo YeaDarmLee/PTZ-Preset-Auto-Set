@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import init_db, get_db_connection
-from app.routes import dashboard, cameras, presets, autoset
+from app.routes import dashboard, cameras, presets, autoset, settings as settings_route
 from app.websocket import status_hub
 
 # Logging setup
@@ -29,6 +29,7 @@ app.include_router(dashboard.router)
 app.include_router(cameras.router)
 app.include_router(presets.router)
 app.include_router(autoset.router)
+app.include_router(settings_route.router)
 app.include_router(status_hub.router)
 
 @app.on_event("startup")

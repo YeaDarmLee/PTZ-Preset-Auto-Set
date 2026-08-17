@@ -39,9 +39,14 @@
         {% for camera in cameras %}
         <div class="camera-card card" id="cameraCard-{{ camera.id }}">
             <div class="camera-card-header">
-                <h3 class="camera-name">{{ camera.name }}</h3>
-                <span class="camera-ip">{{ camera.ip_address }}</span>
-                <span class="badge badge-outline" id="camStatusBadge-{{ camera.id }}">CONNECTED</span>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <h3 class="camera-name" style="margin: 0; line-height: 1.2;">{{ camera.name }}</h3>
+                    <span class="camera-ip" style="font-size: 0.75rem;">{{ camera.ip_address }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+                    <span class="badge" style="background: #1e293b; color: #38bdf8; border: 1px solid #334155; font-size: 0.7rem;">Profile: {{ camera.profile_scope }}</span>
+                    <span class="badge badge-outline" id="camStatusBadge-{{ camera.id }}">CONNECTED</span>
+                </div>
             </div>
 
             <div class="preset-list">
