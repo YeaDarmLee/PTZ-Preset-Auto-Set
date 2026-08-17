@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}{{ camera.name }} 프리셋 관리{% endblock %}
+
+{% block content %}
+<div class="preset-management-container">
+    <div class="header-panel card">
+        <div>
+            <a href="/cameras" class="btn btn-secondary">← 카메라 목록으로</a>
+            <h2 style="margin-top: 0.5rem;">{{ camera.name }} ({{ camera.ip_address }}) 프리셋 목록</h2>
+            <p class="text-muted">이 카메라에 구성된 BASE / LIVE 프리셋 및 구도 설정을 관리합니다.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openAddPresetModal()">+ 프리셋 신규 추가</button>
+    </div>
+
+    <!-- Presets List Grid -->
+    <div class="cameras-grid" style="margin-top: 1.5rem;">
+        <div class="card" style="grid-column: 1 / -1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3>등록된 프리셋 목록</h3>
+            </div>
+
+            <table class="table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--card-border); color: var(--text-muted);">
+                        <th style="padding: 0.75rem;">프리셋 명칭</th>
+                        <th>BASE Preset</th>
+                        <th>LIVE Preset</th>
+                        <th>Target Mode</th>
+                        <th>Headroom (Vertical)</th>
+                        <th>AutoSet 여부</th>
+                        <th>마지막 상태</th>
+                        <th>관리 및 구도 설정</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for preset in presets %}
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <td style="padding: 0.75rem; font-weight: 600;">{{ preset.name }}</td>
+                        <td><span class="badge badge-primary">BASE #{{ preset.base_preset_no }}</span></td>
+                        <td><span class="badge badge-outline">LIVE #{{ preset.live_preset_no }}</span></td>
+                        <td><span class="preset-mode-tag">{{ preset.target_mode }}</span></td>
+                        <td>{{ preset.vertical_metric }}</td>
+                        <td>{% if preset.auto_set_enabled %}🟢 Enabled{% else %}⚪ Disabled{% endif %}</td>
+                        <td><span class="preset-item status-{{ preset.last_auto_set_status|lower }}"
+                                style="padding: 0.2rem 0.5rem; display: inline-block;">{{ preset.last_auto_set_status
+                                }}</span></td>
+                        <td>
+                            <div style="display: flex; gap: 0.35rem;">
+                                <a href="/roi-editor/{{ preset.id }}" class="btn btn-sm btn-primary">⚙️ ROI 구도 설정</a>
+                                <button class="btn btn-sm btn-secondary" data-id="{{ preset.id }}"
+                                    data-name="{{ preset.name }}" data-base="{{ preset.base_preset_no }}"
+                                    data-live="{{ preset.live_preset_no }}" data-mode="{{ preset.target_mode }}"
+                                    data-vertical="{{ preset.vertical_metric }}"
+                                    data-policy="{{ preset.person_count_policy }}"
+                                    data-enabled="{{ preset.auto_set_enabled|lower }}"
+                                    onclick="openEditPresetModal(this)">수정</button>
+                                <button class="btn btn-sm btn-danger"
+                                    onclick="deletePreset({{ preset.id }})">삭제</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not presets %}
+                    <tr>
+                        <td colspan="8" style="padding: 2rem; text-align: center; color: var(--text-muted);">
+                            등록된 프리셋이 없습니다. [+ 프리셋 신규 추가] 버튼을 누르고 등록하세요.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add / Edit Preset Modal -->
+<div class="modal-overlay" id="presetModal" style="display: none;">
+    <div class="modal-card card">
+        <div class="modal-header">
+            <h3 id="modalPresetTitle">프리셋 신규 추가</h3>
+            <button class="close-btn" onclick="closePresetModal()">×</button>
+        </div>
+        <form id="presetForm" onsubmit="handlePresetSubmit(event)">
+            <input type="hidden" id="cameraId" value="{{ camera.id }}">
+            <input type="hidden" id="presetId">
+
+            <div class="form-group">
+                <label>프리셋 명칭</label>
+                <input type="text" id="presetName" class="form-control" placeholder="예: 설교자 Close, 무대 Wide" required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>BASE Preset 번호 (원본 보존 / Read-Only)</label>
+                    <input type="number" id="basePresetNo" class="form-control" placeholder="예: 1" required>
+                </div>
+                <div class="form-group">
+                    <label>LIVE Preset 번호 (자동 보정 저장 대상)</label>
+                    <input type="number" id="livePresetNo" class="form-control" placeholder="예: 101" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Target Mode</label>
+                    <select id="presetTargetMode" class="form-control">
+                        <option value="SINGLE">SINGLE (1인 Close/Medium Shot)</option>
+                        <option value="GROUP">GROUP (2인/3인/4인 Group Framing Shot)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Vertical Metric (Headroom 세로 기준)</label>
+                    <select id="presetVerticalMetric" class="form-control">
+                        <option value="EYE_Y">EYE_Y (눈 높이)</option>
+                        <option value="BBOX_TOP">BBOX_TOP (단일 인물 머리 상단)</option>
+                        <option value="GROUP_TOP">GROUP_TOP (그룹 상단 Headroom)</option>
+                        <option value="GROUP_CENTER">GROUP_CENTER (그룹 세로 중심)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Person Count Policy (인원수 검증)</label>
+                    <select id="presetCountPolicy" class="form-control">
+                        <option value="FLEXIBLE">FLEXIBLE (모든 유효 인원 포함)</option>
+                        <option value="STRICT">STRICT (정확히 N명과 일치 필수)</option>
+                        <option value="MINIMUM">MINIMUM (최소 N명 이상만 허용)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Auto Set 활성화 (Enabled)</label>
+                    <select id="presetAutoEnabled" class="form-control">
+                        <option value="true">Enabled (자동 보정 포함)</option>
+                        <option value="false">Disabled (BASE 복사/스킵)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-footer"
+                style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closePresetModal()">취소</button>
+                <button type="submit" class="btn btn-success">저장</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/preset.js"></script>
+{% endblock %}

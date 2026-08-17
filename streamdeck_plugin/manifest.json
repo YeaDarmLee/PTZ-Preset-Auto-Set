@@ -1,0 +1,28 @@
+{
+  "Name": "PTZ Auto Set Stream Deck Plugin",
+  "Description": "Church PTZ Preset Auto Set Control Plugin",
+  "Author": "Church Broadcast Tech Team",
+  "Version": "1.0.0",
+  "Icon": "icon",
+  "Category": "PTZ Control",
+  "Actions": [
+    {
+      "Name": "AUTO SET ALL",
+      "UUID": "com.church.ptzautoset.all",
+      "Tooltip": "Trigger AutoSet for All Presets",
+      "Icon": "icon_all"
+    },
+    {
+      "Name": "RETRY FAILED",
+      "UUID": "com.church.ptzautoset.retryfailed",
+      "Tooltip": "Retry AutoSet for Failed Presets",
+      "Icon": "icon_retry"
+    },
+    {
+      "Name": "Preset Control",
+      "UUID": "com.church.ptzautoset.preset",
+      "Tooltip": "Single Camera Preset AutoSet & Status",
+      "Icon": "icon_preset"
+    }
+  ]
+}

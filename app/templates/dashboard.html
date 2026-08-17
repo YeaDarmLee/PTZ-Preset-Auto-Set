@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Top Action Toolbar -->
+    <div class="toolbar-panel card">
+        <div class="action-buttons">
+            <button class="btn btn-success btn-lg" onclick="triggerAutoSetAll()">
+                <span class="icon">▶</span> AUTO SET ALL
+            </button>
+            <button class="btn btn-warning btn-lg" onclick="triggerRetryFailed()">
+                RETRY FAILED
+            </button>
+            <button class="btn btn-secondary btn-lg" onclick="resetUIStatus()">
+                RESET STATUS
+            </button>
+            <button class="btn btn-danger btn-lg" onclick="triggerCancel()">
+                CANCEL
+            </button>
+        </div>
+        <div class="summary-counters">
+            <div class="counter-item success">
+                <span class="count-val" id="successCount">0</span>
+                <span class="count-label">SUCCESS</span>
+            </div>
+            <div class="counter-item failed">
+                <span class="count-val" id="failedCount">0</span>
+                <span class="count-label">FAILED</span>
+            </div>
+            <div class="counter-item ready">
+                <span class="count-val" id="totalCount">{{ presets|length }}</span>
+                <span class="count-label">TOTAL PRESETS</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cameras Grid -->
+    <div class="cameras-grid">
+        {% for camera in cameras %}
+        <div class="camera-card card" id="cameraCard-{{ camera.id }}">
+            <div class="camera-card-header">
+                <h3 class="camera-name">{{ camera.name }}</h3>
+                <span class="camera-ip">{{ camera.ip_address }}</span>
+                <span class="badge badge-outline" id="camStatusBadge-{{ camera.id }}">CONNECTED</span>
+            </div>
+
+            <div class="preset-list">
+                {% for preset in presets %}
+                {% if preset.camera_id == camera.id %}
+                <div class="preset-item status-{{ preset.last_auto_set_status|lower }}" id="presetItem-{{ preset.id }}">
+                    <div class="preset-info">
+                        <div class="preset-title">
+                            <span class="preset-name">{{ preset.name }}</span>
+                            <span class="preset-mode-tag">{{ preset.target_mode }}</span>
+                        </div>
+                        <div class="preset-meta">
+                            <span>BASE #{{ preset.base_preset_no }}</span> → <span>LIVE #{{ preset.live_preset_no
+                                }}</span>
+                        </div>
+                    </div>
+                    <div class="preset-actions">
+                        <button class="btn-icon btn-run" title="개별 AutoSet"
+                            onclick="triggerSinglePreset({{ preset.id }})">▶</button>
+                        <a href="/roi-editor/{{ preset.id }}" class="btn-icon btn-edit" title="ROI 및 Target 설정">⚙</a>
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}

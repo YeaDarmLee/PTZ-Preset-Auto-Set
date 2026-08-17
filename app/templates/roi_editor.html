@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}ROI & Target Editor - {{ preset.name }}{% endblock %}
+
+{% block content %}
+<div class="editor-container">
+    <div class="editor-header card">
+        <a href="/cameras/{{ preset.camera_id }}/presets" class="btn btn-secondary">← 프리셋 목록으로</a>
+        <h2>{{ preset.camera_name }} - {{ preset.name }} (ROI & Target 구도 설정)</h2>
+        <button class="btn btn-success" onclick="saveROIAndTarget()">설정 저장</button>
+    </div>
+
+    <div class="editor-body">
+        <!-- Canvas ROI Overlay Section -->
+        <div class="canvas-panel card">
+            <div class="preview-wrapper" id="previewWrapper" data-roi-x1="{{ preset.roi_x1 }}"
+                data-roi-y1="{{ preset.roi_y1 }}" data-roi-x2="{{ preset.roi_x2 }}" data-roi-y2="{{ preset.roi_y2 }}"
+                data-target-x="{{ preset.target_x }}" data-target-y="{{ preset.target_y }}">
+                <img id="cameraStreamImg" src="/api/cameras/{{ preset.camera_id }}/snapshot" alt="Live Camera Preview">
+                <canvas id="roiCanvas"></canvas>
+            </div>
+            <div class="canvas-instructions">
+                💡 **마우스 드래그**: ROI 영역(녹색 상자) 지정 | **마우스 클릭**: Target 구도 위치(빨간 십자가) 설정
+            </div>
+        </div>
+
+        <!-- Settings Form Section -->
+        <div class="settings-panel card">
+            <h3>프리셋 파라미터</h3>
+            <form id="roiForm">
+                <input type="hidden" id="presetId" value="{{ preset.id }}">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>BASE Preset 번호 (원본 보존)</label>
+                        <input type="number" id="basePresetNo" class="form-control" value="{{ preset.base_preset_no }}"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label>LIVE Preset 번호 (자동 보정 저장)</label>
+                        <input type="number" id="livePresetNo" class="form-control" value="{{ preset.live_preset_no }}"
+                            required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Target Mode</label>
+                    <select id="targetMode" class="form-control">
+                        <option value="SINGLE" {% if preset.target_mode=='SINGLE' %}selected{% endif %}>SINGLE (1인
+                            Close/Medium Shot)</option>
+                        <option value="GROUP" {% if preset.target_mode=='GROUP' %}selected{% endif %}>GROUP (2인/3인/4인
+                            Group Framing Shot)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Vertical Metric (Y축 기준)</label>
+                    <select id="verticalMetric" class="form-control">
+                        <option value="EYE_Y" {% if preset.vertical_metric=='EYE_Y' %}selected{% endif %}>EYE_Y (눈 높이)
+                        </option>
+                        <option value="BBOX_TOP" {% if preset.vertical_metric=='BBOX_TOP' %}selected{% endif %}>BBOX_TOP
+                            (단일 인물 머리 상단)</option>
+                        <option value="GROUP_TOP" {% if preset.vertical_metric=='GROUP_TOP' %}selected{% endif %}>
+                            GROUP_TOP (그룹 전체 상단 Headroom)</option>
+                        <option value="GROUP_CENTER" {% if preset.vertical_metric=='GROUP_CENTER' %}selected{% endif %}>
+                            GROUP_CENTER (그룹 세로 중심)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Person Count Policy (인원수 검증)</label>
+                    <select id="personCountPolicy" class="form-control">
+                        <option value="FLEXIBLE" {% if preset.person_count_policy=='FLEXIBLE' %}selected{% endif %}>
+                            FLEXIBLE (모든 유효 인원 포함)</option>
+                        <option value="STRICT" {% if preset.person_count_policy=='STRICT' %}selected{% endif %}>STRICT
+                            (정확히 N명과 일치 필수)</option>
+                        <option value="MINIMUM" {% if preset.person_count_policy=='MINIMUM' %}selected{% endif %}>
+                            MINIMUM (최소 N명 이상만 허용)</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>기대 인원 (Expected)</label>
+                        <input type="number" id="expectedCount" class="form-control"
+                            value="{{ preset.expected_person_count or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>최소 인원 (Min)</label>
+                        <input type="number" id="minCount" class="form-control"
+                            value="{{ preset.minimum_person_count or '' }}">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Pan Limit (±°)</label>
+                        <input type="number" step="0.1" id="panLimit" class="form-control"
+                            value="{{ preset.pan_limit }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Tilt Limit (±°)</label>
+                        <input type="number" step="0.1" id="tiltLimit" class="form-control"
+                            value="{{ preset.tilt_limit }}">
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/roi_editor.js"></script>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}카메라 세팅 및 장비 관리{% endblock %}
+
+{% block content %}
+<div class="camera-management-container">
+    <div class="header-panel card">
+        <div>
+            <h2>카메라 장비 세팅 관리</h2>
+            <p class="text-muted">네트워크 내 PTZ 카메라(VISCA IP) 및 RTSP 스트림 연결을 관리합니다.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openAddCameraModal()">+ 카메라 신규 추가</button>
+    </div>
+
+    <!-- Cameras Grid -->
+    <div class="cameras-grid" style="margin-top: 1.5rem;">
+        {% for camera in cameras %}
+        <div class="camera-card card" id="camCard-{{ camera.id }}">
+            <div class="camera-card-header">
+                <div>
+                    <h3 class="camera-name">{{ camera.name }}</h3>
+                    <span class="camera-ip">{{ camera.ip_address }}:{{ camera.visca_port }} ({{ camera.visca_protocol
+                        }})</span>
+                </div>
+                <span class="badge {% if camera.enabled %}badge-outline{% else %}badge-secondary{% endif %}">
+                    {% if camera.enabled %}ENABLED 🟢{% else %}DISABLED ⚪{% endif %}
+                </span>
+            </div>
+
+            <div class="camera-details">
+                <div class="detail-row">
+                    <span class="detail-label">RTSP Stream:</span>
+                    <span class="detail-val mono">{{ camera.rtsp_url_masked }}</span>
+                </div>
+                <div class="health-statuses" id="healthBox-{{ camera.id }}">
+                    <div class="health-item">
+                        <span class="health-name">PTZ (VISCA)</span>
+                        <span class="health-badge status-unknown" id="viscaStatus-{{ camera.id }}">UNKNOWN</span>
+                        <span class="health-meta" id="viscaLatency-{{ camera.id }}">-</span>
+                    </div>
+                    <div class="health-item">
+                        <span class="health-name">VIDEO (RTSP)</span>
+                        <span class="health-badge status-unknown" id="rtspStatus-{{ camera.id }}">UNKNOWN</span>
+                        <span class="health-meta" id="rtspRes-{{ camera.id }}">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="camera-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-secondary" onclick="testExistingCamera({{ camera.id }})">연결
+                    테스트</button>
+                <button class="btn btn-sm btn-secondary" data-id="{{ camera.id }}" data-name="{{ camera.name }}"
+                    data-ip="{{ camera.ip_address }}" data-port="{{ camera.visca_port }}"
+                    data-protocol="{{ camera.visca_protocol }}" data-enabled="{{ camera.enabled|lower }}"
+                    data-rtsp-url="{{ camera.rtsp_url }}" data-rtsp-user="{{ camera.rtsp_username or '' }}"
+                    onclick="openEditCameraModal(this)">설정 수정</button>
+                <a href="/cameras/{{ camera.id }}/presets" class="btn btn-sm btn-primary">프리셋 관리</a>
+                <button class="btn btn-sm btn-danger" onclick="deleteCamera({{ camera.id }})">삭제</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Add / Edit Camera Modal -->
+<div class="modal-overlay" id="cameraModal" style="display: none;">
+    <div class="modal-card card">
+        <div class="modal-header">
+            <h3 id="modalTitle">카메라 추가</h3>
+            <button class="close-btn" onclick="closeCameraModal()">×</button>
+        </div>
+        <form id="cameraForm" onsubmit="handleCameraSubmit(event)">
+            <input type="hidden" id="camId">
+            <div class="form-group">
+                <label>카메라 명칭</label>
+                <input type="text" id="camName" class="form-control" placeholder="예: CAM 8, 설교자 Close 전용" required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>IP Address</label>
+                    <input type="text" id="camIp" class="form-control" placeholder="192.168.1.108" required>
+                </div>
+                <div class="form-group">
+                    <label>VISCA Port</label>
+                    <input type="number" id="camPort" class="form-control" value="52381" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>VISCA Protocol</label>
+                    <select id="camProtocol" class="form-control">
+                        <option value="UDP">UDP</option>
+                        <option value="TCP">TCP</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>활성화 여부 (Enabled)</label>
+                    <select id="camEnabled" class="form-control">
+                        <option value="true">Enabled (사용함)</option>
+                        <option value="false">Disabled (비활성화)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>RTSP Stream URL</label>
+                <input type="text" id="camRtspUrl" class="form-control" placeholder="rtsp://192.168.1.108:554/stream1"
+                    required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>RTSP Username (선택)</label>
+                    <input type="text" id="camRtspUser" class="form-control" placeholder="admin">
+                </div>
+                <div class="form-group">
+                    <label>RTSP Password (선택)</label>
+                    <input type="password" id="camRtspPass" class="form-control" placeholder="비밀번호">
+                </div>
+            </div>
+
+            <!-- Draft Connection Test Result Area -->
+            <div class="draft-test-box card" id="draftTestResult"
+                style="display: none; margin-top: 1rem; background-color: #1F2937;">
+                <div class="draft-status-line">
+                    <span>VISCA: <strong id="draftViscaStatus">TESTING...</strong></span>
+                    <span>VIDEO: <strong id="draftRtspStatus">TESTING...</strong></span>
+                </div>
+                <div id="draftTestError" style="color: var(--danger); font-size: 0.8rem; margin-top: 0.3rem;"></div>
+            </div>
+
+            <div class="modal-footer" style="margin-top: 1.5rem; display: flex; justify-content: space-between;">
+                <button type="button" class="btn btn-warning" onclick="runDraftTest()">저장 전 연결 테스트</button>
+                <div>
+                    <button type="button" class="btn btn-secondary" onclick="closeCameraModal()">취소</button>
+                    <button type="submit" class="btn btn-success" id="btnSaveCamera">저장</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/camera.js"></script>
+{% endblock %}

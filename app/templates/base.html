@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PTZ Preset Auto Set System{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+        rel="stylesheet">
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <div class="app-layout">
+        <header class="app-header">
+            <div class="brand">
+                <h1>PTZ AUTO SET <span class="badge badge-primary">LIVE ENGINE</span></h1>
+            </div>
+            <nav class="nav-links">
+                <a href="/" class="nav-link">대시보드</a>
+                <a href="/cameras" class="nav-link">카메라 관리</a>
+            </nav>
+            <div class="system-status" id="systemStatus">
+                <span class="status-indicator ready"></span>
+                <span class="status-text">SYSTEM READY</span>
+            </div>
+        </header>
+
+        <main class="app-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="/static/js/websocket.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
